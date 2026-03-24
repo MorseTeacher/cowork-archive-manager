@@ -30,7 +30,7 @@ This tool provides a workaround — **restore** and **delete** archived sessions
 ### Option 1: Run directly with Python
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/cowork-archive-manager.git
+git clone https://github.com/SugaCrypto/cowork-archive-manager.git
 cd cowork-archive-manager
 python3 cowork_archive_manager.py
 ```
@@ -38,7 +38,7 @@ python3 cowork_archive_manager.py
 ### Option 2: Install as macOS app
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/cowork-archive-manager.git
+git clone https://github.com/SugaCrypto/cowork-archive-manager.git
 cd cowork-archive-manager
 chmod +x install.sh
 ./install.sh
@@ -105,7 +105,7 @@ Claude Desktop にはアーカイブしたタスクを表示する「Archived」
 ### インストール
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/cowork-archive-manager.git
+git clone https://github.com/SugaCrypto/cowork-archive-manager.git
 cd cowork-archive-manager
 python3 cowork_archive_manager.py
 ```

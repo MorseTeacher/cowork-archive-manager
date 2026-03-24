@@ -6,7 +6,7 @@ Claude Desktop (Cowork) のアーカイブ済みセッションを管理するGU
 起動すると localhost でサーバーが立ち上がり、ブラウザに管理画面が表示されます。
 ブラウザタブを閉じると自動的にサーバーも終了します。
 
-GitHub: https://github.com/YOUR_USERNAME/cowork-archive-manager
+GitHub: https://github.com/SugaCrypto/cowork-archive-manager
 License: MIT
 """
 
