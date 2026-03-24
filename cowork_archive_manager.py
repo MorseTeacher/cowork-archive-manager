@@ -10,6 +10,7 @@ GitHub: https://github.com/SugaCrypto/cowork-archive-manager
 License: MIT
 """
 
+import argparse
 import json
 import os
 import platform
@@ -27,10 +28,13 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 # --- 定数 ---
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 APP_TITLE = "Cowork Archive Manager"
 PORT = 52849
 LOCK_FILE = Path.home() / ".cowork_archive_manager.lock"
+
+# コマンドライン引数で指定されたカスタムパス（None = 自動検出）
+custom_sessions_path = None
 
 def get_sessions_base():
     """OSに応じたセッションディレクトリのベースパスを返す"""
@@ -90,26 +94,74 @@ def remove_lock():
 # --- セッション操作 ---
 
 def find_sessions_dir():
-    """セッションディレクトリを探索"""
+    """セッションディレクトリを探索し、(パス or None, 診断情報dict) を返す"""
+    diag = {
+        "os": platform.system(),
+        "custom_path": str(custom_sessions_path) if custom_sessions_path else None,
+        "searched_base": None,
+        "base_exists": False,
+        "subdirs_found": [],
+        "reason": None,
+    }
+
+    # カスタムパスが指定されている場合はそれを使用
+    if custom_sessions_path is not None:
+        p = Path(custom_sessions_path)
+        diag["searched_base"] = str(p)
+        if not p.exists():
+            diag["reason"] = "custom_path_not_found"
+            return None, diag
+        if not p.is_dir():
+            diag["reason"] = "custom_path_not_dir"
+            return None, diag
+        # カスタムパスに直接 local_*.json があるか確認
+        if any(p.glob("local_*.json")):
+            diag["base_exists"] = True
+            return p, diag
+        # カスタムパス配下のサブディレクトリも探索
+        for sub in p.iterdir():
+            if sub.is_dir():
+                diag["subdirs_found"].append(sub.name)
+                if any(sub.glob("local_*.json")):
+                    diag["base_exists"] = True
+                    return sub, diag
+                for proj in sub.iterdir():
+                    if proj.is_dir() and any(proj.glob("local_*.json")):
+                        diag["base_exists"] = True
+                        return proj, diag
+        diag["reason"] = "no_session_files_in_custom_path"
+        return None, diag
+
+    # 自動検出
     sessions_base = get_sessions_base()
+    diag["searched_base"] = str(sessions_base)
+
     if not sessions_base.exists():
-        return None
+        diag["reason"] = "base_dir_not_found"
+        return None, diag
+
+    diag["base_exists"] = True
+
     for org_dir in sessions_base.iterdir():
         if not org_dir.is_dir() or org_dir.name == "skills-plugin":
             continue
+        diag["subdirs_found"].append(org_dir.name)
         for proj_dir in org_dir.iterdir():
             if not proj_dir.is_dir():
                 continue
             if any(proj_dir.glob("local_*.json")):
-                return proj_dir
-    return None
+                return proj_dir, diag
+
+    diag["reason"] = "no_session_files"
+    return None, diag
 
 
 def load_sessions():
-    """全セッションを読み込み"""
-    sessions_dir = find_sessions_dir()
+    """全セッションと診断情報を返す"""
+    sessions_dir, diag = find_sessions_dir()
     if sessions_dir is None:
-        return []
+        return [], diag
+    diag["sessions_dir"] = str(sessions_dir)
     sessions = []
     for json_file in sessions_dir.glob("local_*.json"):
         try:
@@ -120,7 +172,7 @@ def load_sessions():
         except (json.JSONDecodeError, OSError):
             continue
     sessions.sort(key=lambda s: s.get("lastActivityAt", 0), reverse=True)
-    return sessions
+    return sessions, diag
 
 
 def restore_session(json_path):
@@ -379,7 +431,12 @@ HTML_PAGE = r"""<!DOCTYPE html>
     padding: 60px 24px;
     color: var(--text2);
   }
-  .empty-state p { font-size: 16px; }
+  .empty-state p { font-size: 16px; line-height: 1.8; }
+  .empty-state code {
+    background: rgba(255,255,255,0.08);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
 
   .select-all-area {
     padding: 4px 24px 0;
@@ -430,9 +487,12 @@ HTML_PAGE = r"""<!DOCTYPE html>
 let sessions = [];
 let currentFilter = 'all';
 let selectedPaths = new Set();
+let lastDiagnostic = null;
 
 // --- i18n ---
 const isJa = navigator.language.startsWith('ja');
+const _isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+const _restartHint = _isMac ? 'Cmd+Q' : 'Alt+F4';
 const i18n = {
   openFolder:       isJa ? 'フォルダを開く'                   : 'Open Folder',
   refresh:          isJa ? '更新'                             : 'Refresh',
@@ -456,6 +516,15 @@ const i18n = {
   badgeActive:      isJa ? 'アクティブ'                        : 'Active',
   items:            isJa ? '件'                               : 'items',
   empty:            isJa ? '該当するセッションはありません'       : 'No sessions found',
+  diagBaseNotFound: isJa
+    ? (p) => `セッションディレクトリが見つかりません<br><code style="font-size:12px;color:#f0a500;word-break:break-all">${p}</code><br><br>Claude Desktop がインストールされ、エージェントモードでセッションを実行した履歴があることを確認してください。<br>または <code>--path</code> オプションでディレクトリを手動指定できます。`
+    : (p) => `Session directory not found<br><code style="font-size:12px;color:#f0a500;word-break:break-all">${p}</code><br><br>Make sure Claude Desktop is installed and you have run at least one agent mode session.<br>Or specify a custom path with the <code>--path</code> option.`,
+  diagNoFiles: isJa
+    ? (p) => `セッションファイル (local_*.json) が見つかりません<br><code style="font-size:12px;color:#f0a500;word-break:break-all">${p}</code><br><br>Claude Desktop でエージェントモードのセッションを実行してからお試しください。`
+    : (p) => `No session files (local_*.json) found in<br><code style="font-size:12px;color:#f0a500;word-break:break-all">${p}</code><br><br>Run an agent mode session in Claude Desktop first.`,
+  diagCustomNotFound: isJa
+    ? (p) => `指定されたパスが存在しません<br><code style="font-size:12px;color:#f0a500;word-break:break-all">${p}</code><br><br>パスを確認して再度お試しください。`
+    : (p) => `Specified path does not exist<br><code style="font-size:12px;color:#f0a500;word-break:break-all">${p}</code><br><br>Please check the path and try again.`,
   refreshed:        isJa ? 'セッション一覧を更新しました'        : 'Session list refreshed',
   noArchived:       isJa ? 'アーカイブ済みセッションはありません' : 'No archived sessions',
   noRestoreTarget:  isJa ? '復元対象がありません'               : 'No sessions to restore',
@@ -465,24 +534,24 @@ const i18n = {
   bulkRestoreTitle: isJa ? '一括復元の確認'                    : 'Confirm Bulk Restore',
   allArchiveDelete: isJa ? '全アーカイブ削除'                  : 'Delete All Archived',
   restoreMsg:       (name) => isJa
-    ? `「${name}」を復元しますか？<br>反映には Claude Desktop の再起動 (Cmd+Q) が必要です。`
-    : `Restore "${name}"?<br>Restart Claude Desktop (Cmd+Q) to apply changes.`,
+    ? `「${name}」を復元しますか？<br>反映には Claude Desktop の再起動 (${_restartHint}) が必要です。`
+    : `Restore "${name}"?<br>Restart Claude Desktop (${_restartHint}) to apply changes.`,
   deleteMsg:        (name) => isJa
     ? `「${name}」を完全に削除します。<br><strong>この操作は元に戻せません！</strong>`
     : `Permanently delete "${name}".<br><strong>This cannot be undone!</strong>`,
-  restoredOk:       isJa ? '復元しました。Cmd+Q で再起動してください。'  : 'Restored. Restart Claude Desktop (Cmd+Q) to apply.',
+  restoredOk:       isJa ? `復元しました。${_restartHint} で再起動してください。`  : `Restored. Restart Claude Desktop (${_restartHint}) to apply.`,
   restoreFail:      isJa ? '復元に失敗しました'                         : 'Failed to restore',
   deletedOk:        isJa ? '削除しました'                               : 'Deleted',
   deleteFail:       isJa ? '削除に失敗しました'                          : 'Failed to delete',
   bulkRestoreMsg:   (n) => isJa
-    ? `${n} 件を復元します。<br>反映には Claude Desktop の再起動が必要です。`
-    : `Restore ${n} session(s).<br>Restart Claude Desktop to apply changes.`,
+    ? `${n} 件を復元します。<br>反映には Claude Desktop の再起動 (${_restartHint}) が必要です。`
+    : `Restore ${n} session(s).<br>Restart Claude Desktop (${_restartHint}) to apply changes.`,
   bulkDeleteMsg:    (n) => isJa
     ? `${n} 件を完全に削除します。<br><strong>この操作は元に戻せません！</strong>`
     : `Permanently delete ${n} session(s).<br><strong>This cannot be undone!</strong>`,
   bulkRestoredOk:   (n) => isJa
-    ? `${n} 件を復元しました。Cmd+Q で再起動してください。`
-    : `Restored ${n} session(s). Restart Claude Desktop (Cmd+Q) to apply.`,
+    ? `${n} 件を復元しました。${_restartHint} で再起動してください。`
+    : `Restored ${n} session(s). Restart Claude Desktop (${_restartHint}) to apply.`,
   bulkDeletedOk:    (n) => isJa ? `${n} 件を削除しました` : `Deleted ${n} session(s)`,
   allRestoreMsg:    (n) => isJa
     ? `アーカイブ済みの ${n} 件すべてを復元します。`
@@ -552,7 +621,22 @@ function renderSessions() {
   document.getElementById('count').textContent = filtered.length + ' ' + i18n.items;
 
   if (filtered.length === 0) {
-    list.innerHTML = `<div class="empty-state"><p>${i18n.empty}</p></div>`;
+    let emptyMsg = i18n.empty;
+    // セッション自体が0件で診断情報がある場合は詳細を表示
+    if (sessions.length === 0 && lastDiagnostic) {
+      const d = lastDiagnostic;
+      const basePath = d.searched_base || '?';
+      if (d.reason === 'base_dir_not_found') {
+        emptyMsg = i18n.diagBaseNotFound(basePath);
+      } else if (d.reason === 'no_session_files') {
+        emptyMsg = i18n.diagNoFiles(basePath);
+      } else if (d.reason === 'custom_path_not_found' || d.reason === 'custom_path_not_dir') {
+        emptyMsg = i18n.diagCustomNotFound(d.custom_path || basePath);
+      } else if (d.reason === 'no_session_files_in_custom_path') {
+        emptyMsg = i18n.diagNoFiles(d.custom_path || basePath);
+      }
+    }
+    list.innerHTML = `<div class="empty-state"><p>${emptyMsg}</p></div>`;
     return;
   }
 
@@ -645,6 +729,7 @@ function showModal(title, message, onConfirm, danger) {
 async function refresh() {
   const res = await api('list');
   sessions = res.sessions || [];
+  lastDiagnostic = res.diagnostic || null;
   selectedPaths.clear();
   document.getElementById('select-all').checked = false;
   renderSessions();
@@ -761,8 +846,8 @@ class Handler(BaseHTTPRequestHandler):
             result = {"ok": True}
 
         elif path == "/api/list":
-            sessions = load_sessions()
-            result = {"sessions": sessions}
+            sessions, diag = load_sessions()
+            result = {"sessions": sessions, "diagnostic": diag}
 
         elif path == "/api/restore":
             paths = body.get("paths", [])
@@ -775,7 +860,7 @@ class Handler(BaseHTTPRequestHandler):
             result = {"success": True, "count": count}
 
         elif path == "/api/open_folder":
-            sessions_dir = find_sessions_dir()
+            sessions_dir, _ = find_sessions_dir()
             if sessions_dir:
                 system = platform.system()
                 if system == "Darwin":
@@ -804,6 +889,21 @@ def watchdog(server):
 
 
 def main():
+    global custom_sessions_path
+
+    parser = argparse.ArgumentParser(description="Cowork Archive Manager - Claude Desktop セッション管理ツール")
+    parser.add_argument(
+        "--path",
+        type=str,
+        default=None,
+        help="セッションディレクトリのパスを手動指定（例: --path \"C:\\Users\\you\\AppData\\Roaming\\Claude\\local-agent-mode-sessions\"）"
+    )
+    args = parser.parse_args()
+
+    if args.path:
+        custom_sessions_path = args.path
+        print(f"カスタムパス指定: {custom_sessions_path}")
+
     # 既存サーバーが動いていたら、ブラウザだけ開いて終了
     if is_server_running():
         print(f"既存のサーバーが動作中です。ブラウザを開きます。")
