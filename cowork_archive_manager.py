@@ -431,7 +431,82 @@ let sessions = [];
 let currentFilter = 'all';
 let selectedPaths = new Set();
 
-// ブラウザタブが開いている間、サーバーに生存通知を送る
+// --- i18n ---
+const isJa = navigator.language.startsWith('ja');
+const i18n = {
+  openFolder:       isJa ? 'フォルダを開く'                   : 'Open Folder',
+  refresh:          isJa ? '更新'                             : 'Refresh',
+  all:              isJa ? 'すべて'                           : 'All',
+  archived:         isJa ? 'アーカイブ済み'                    : 'Archived',
+  active:           isJa ? 'アクティブ'                        : 'Active',
+  restoreSelected:  isJa ? '選択を復元'                       : 'Restore Selected',
+  deleteSelected:   isJa ? '選択を削除'                       : 'Delete Selected',
+  restoreAll:       isJa ? '全アーカイブを復元'                : 'Restore All Archived',
+  deleteAll:        isJa ? '全アーカイブを削除'                : 'Delete All Archived',
+  selectAll:        isJa ? 'すべて選択'                       : 'Select All',
+  restore:          isJa ? '復元'                             : 'Restore',
+  delete_:          isJa ? '削除'                             : 'Delete',
+  cancel:           isJa ? 'キャンセル'                        : 'Cancel',
+  execute:          isJa ? '実行'                             : 'Confirm',
+  unknown:          isJa ? '不明'                             : 'Unknown',
+  model:            isJa ? 'モデル'                           : 'Model',
+  created:          isJa ? '作成'                             : 'Created',
+  lastActive:       isJa ? '最終'                             : 'Last Active',
+  badgeArchived:    isJa ? 'アーカイブ'                        : 'Archived',
+  badgeActive:      isJa ? 'アクティブ'                        : 'Active',
+  items:            isJa ? '件'                               : 'items',
+  empty:            isJa ? '該当するセッションはありません'       : 'No sessions found',
+  refreshed:        isJa ? 'セッション一覧を更新しました'        : 'Session list refreshed',
+  noArchived:       isJa ? 'アーカイブ済みセッションはありません' : 'No archived sessions',
+  noRestoreTarget:  isJa ? '復元対象がありません'               : 'No sessions to restore',
+  restoreTitle:     isJa ? '復元の確認'                       : 'Confirm Restore',
+  deleteTitle:      isJa ? '削除の確認'                       : 'Confirm Delete',
+  bulkDeleteTitle:  isJa ? '一括削除の確認'                    : 'Confirm Bulk Delete',
+  bulkRestoreTitle: isJa ? '一括復元の確認'                    : 'Confirm Bulk Restore',
+  allArchiveDelete: isJa ? '全アーカイブ削除'                  : 'Delete All Archived',
+  restoreMsg:       (name) => isJa
+    ? `「${name}」を復元しますか？<br>反映には Claude Desktop の再起動 (Cmd+Q) が必要です。`
+    : `Restore "${name}"?<br>Restart Claude Desktop (Cmd+Q) to apply changes.`,
+  deleteMsg:        (name) => isJa
+    ? `「${name}」を完全に削除します。<br><strong>この操作は元に戻せません！</strong>`
+    : `Permanently delete "${name}".<br><strong>This cannot be undone!</strong>`,
+  restoredOk:       isJa ? '復元しました。Cmd+Q で再起動してください。'  : 'Restored. Restart Claude Desktop (Cmd+Q) to apply.',
+  restoreFail:      isJa ? '復元に失敗しました'                         : 'Failed to restore',
+  deletedOk:        isJa ? '削除しました'                               : 'Deleted',
+  deleteFail:       isJa ? '削除に失敗しました'                          : 'Failed to delete',
+  bulkRestoreMsg:   (n) => isJa
+    ? `${n} 件を復元します。<br>反映には Claude Desktop の再起動が必要です。`
+    : `Restore ${n} session(s).<br>Restart Claude Desktop to apply changes.`,
+  bulkDeleteMsg:    (n) => isJa
+    ? `${n} 件を完全に削除します。<br><strong>この操作は元に戻せません！</strong>`
+    : `Permanently delete ${n} session(s).<br><strong>This cannot be undone!</strong>`,
+  bulkRestoredOk:   (n) => isJa
+    ? `${n} 件を復元しました。Cmd+Q で再起動してください。`
+    : `Restored ${n} session(s). Restart Claude Desktop (Cmd+Q) to apply.`,
+  bulkDeletedOk:    (n) => isJa ? `${n} 件を削除しました` : `Deleted ${n} session(s)`,
+  allRestoreMsg:    (n) => isJa
+    ? `アーカイブ済みの ${n} 件すべてを復元します。`
+    : `Restore all ${n} archived session(s).`,
+  allDeleteMsg:     (n) => isJa
+    ? `アーカイブ済みの ${n} 件すべてを完全に削除します。<br><strong>この操作は元に戻せません！</strong>`
+    : `Permanently delete all ${n} archived session(s).<br><strong>This cannot be undone!</strong>`,
+};
+
+// Apply i18n to static elements
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelector('[onclick="openFolder()"]').textContent = i18n.openFolder;
+  document.querySelector('[onclick="refresh()"]').textContent = i18n.refresh;
+  document.querySelector('[data-filter="all"]').textContent = i18n.all;
+  document.querySelector('[data-filter="archived"]').textContent = i18n.archived;
+  document.querySelector('[data-filter="active"]').textContent = i18n.active;
+  document.getElementById('btn-restore-sel').textContent = i18n.restoreSelected;
+  document.getElementById('btn-delete-sel').textContent = i18n.deleteSelected;
+  document.querySelector('[onclick="restoreAllArchived()"]').textContent = i18n.restoreAll;
+  document.querySelector('[onclick="deleteAllArchived()"]').textContent = i18n.deleteAll;
+  document.querySelector('label[for="select-all"]').textContent = i18n.selectAll;
+});
+
+// Heartbeat
 setInterval(() => {
   fetch('/api/heartbeat', { method: 'POST' }).catch(() => {});
 }, 2000);
@@ -446,7 +521,7 @@ async function api(endpoint, data) {
 }
 
 function formatDate(ms) {
-  if (!ms) return '不明';
+  if (!ms) return i18n.unknown;
   const d = new Date(ms);
   return d.getFullYear() + '-' +
     String(d.getMonth()+1).padStart(2,'0') + '-' +
@@ -474,36 +549,36 @@ function getFiltered() {
 function renderSessions() {
   const list = document.getElementById('session-list');
   const filtered = getFiltered();
-  document.getElementById('count').textContent = filtered.length + ' 件';
+  document.getElementById('count').textContent = filtered.length + ' ' + i18n.items;
 
   if (filtered.length === 0) {
-    list.innerHTML = '<div class="empty-state"><p>該当するセッションはありません</p></div>';
+    list.innerHTML = `<div class="empty-state"><p>${i18n.empty}</p></div>`;
     return;
   }
 
   list.innerHTML = filtered.map(s => {
     const isSelected = selectedPaths.has(s._path);
     const badge = s.isArchived
-      ? '<span class="badge badge-archived">アーカイブ</span>'
-      : '<span class="badge badge-active">アクティブ</span>';
+      ? `<span class="badge badge-archived">${i18n.badgeArchived}</span>`
+      : `<span class="badge badge-active">${i18n.badgeActive}</span>`;
     const msg = (s.initialMessage || '').replace(/\n/g, ' ').substring(0, 80);
-    const model = s.model || '不明';
+    const model = s.model || i18n.unknown;
     return `
       <div class="session-card ${isSelected ? 'selected' : ''}" onclick="toggleSelect('${s._path}', event)">
         <input type="checkbox" class="session-checkbox" ${isSelected ? 'checked' : ''}
                onclick="event.stopPropagation(); toggleSelect('${s._path}')">
         <div class="session-info">
-          <div class="session-name">${badge} ${escapeHtml(s.processName || '不明')}</div>
+          <div class="session-name">${badge} ${escapeHtml(s.processName || i18n.unknown)}</div>
           <div class="session-meta">
-            <span>モデル: ${escapeHtml(model)}</span>
-            <span>作成: ${formatDate(s.createdAt)}</span>
-            <span>最終: ${formatDate(s.lastActivityAt)}</span>
+            <span>${i18n.model}: ${escapeHtml(model)}</span>
+            <span>${i18n.created}: ${formatDate(s.createdAt)}</span>
+            <span>${i18n.lastActive}: ${formatDate(s.lastActivityAt)}</span>
           </div>
           <div class="session-message">${escapeHtml(msg)}</div>
         </div>
         <div class="session-actions">
-          ${s.isArchived ? `<button class="btn btn-success" onclick="event.stopPropagation(); restoreOne('${s._path}')">復元</button>` : ''}
-          <button class="btn btn-danger" onclick="event.stopPropagation(); deleteOne('${s._path}')">削除</button>
+          ${s.isArchived ? `<button class="btn btn-success" onclick="event.stopPropagation(); restoreOne('${s._path}')">${i18n.restore}</button>` : ''}
+          <button class="btn btn-danger" onclick="event.stopPropagation(); deleteOne('${s._path}')">${i18n.delete_}</button>
         </div>
       </div>`;
   }).join('');
@@ -557,8 +632,8 @@ function showModal(title, message, onConfirm, danger) {
       <h2>${title}</h2>
       <p>${message}</p>
       <div class="modal-actions">
-        <button class="btn btn-ghost" id="modal-cancel">キャンセル</button>
-        <button class="btn ${danger ? 'btn-danger' : 'btn-success'}" id="modal-confirm">実行</button>
+        <button class="btn btn-ghost" id="modal-cancel">${i18n.cancel}</button>
+        <button class="btn ${danger ? 'btn-danger' : 'btn-success'}" id="modal-confirm">${i18n.execute}</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
@@ -573,47 +648,44 @@ async function refresh() {
   selectedPaths.clear();
   document.getElementById('select-all').checked = false;
   renderSessions();
-  showToast('セッション一覧を更新しました', 'success');
+  showToast(i18n.refreshed, 'success');
 }
 
 async function restoreOne(path) {
   const s = sessions.find(s => s._path === path);
-  showModal('復元の確認',
-    `「${escapeHtml(s.processName)}」を復元しますか？<br>反映には Claude Desktop の再起動 (Cmd+Q) が必要です。`,
+  showModal(i18n.restoreTitle, i18n.restoreMsg(escapeHtml(s.processName)),
     async () => {
       const res = await api('restore', { paths: [path] });
       if (res.success) {
-        showToast('復元しました。Cmd+Q で再起動してください。', 'success');
+        showToast(i18n.restoredOk, 'success');
         refresh();
       } else {
-        showToast('復元に失敗しました', 'error');
+        showToast(i18n.restoreFail, 'error');
       }
     });
 }
 
 async function deleteOne(path) {
   const s = sessions.find(s => s._path === path);
-  showModal('削除の確認',
-    `「${escapeHtml(s.processName)}」を完全に削除します。<br><strong>この操作は元に戻せません！</strong>`,
+  showModal(i18n.deleteTitle, i18n.deleteMsg(escapeHtml(s.processName)),
     async () => {
       const res = await api('delete', { paths: [path] });
       if (res.success) {
-        showToast('削除しました', 'success');
+        showToast(i18n.deletedOk, 'success');
         refresh();
       } else {
-        showToast('削除に失敗しました', 'error');
+        showToast(i18n.deleteFail, 'error');
       }
     }, true);
 }
 
 async function restoreSelected() {
   const paths = [...selectedPaths].filter(p => sessions.find(s => s._path === p && s.isArchived));
-  if (!paths.length) { showToast('復元対象がありません', 'error'); return; }
-  showModal('復元の確認',
-    `${paths.length} 件を復元します。<br>反映には Claude Desktop の再起動が必要です。`,
+  if (!paths.length) { showToast(i18n.noRestoreTarget, 'error'); return; }
+  showModal(i18n.bulkRestoreTitle, i18n.bulkRestoreMsg(paths.length),
     async () => {
       const res = await api('restore', { paths });
-      showToast(`${res.count} 件を復元しました。Cmd+Q で再起動してください。`, 'success');
+      showToast(i18n.bulkRestoredOk(res.count), 'success');
       refresh();
     });
 }
@@ -621,35 +693,32 @@ async function restoreSelected() {
 async function deleteSelected() {
   const paths = [...selectedPaths];
   if (!paths.length) return;
-  showModal('一括削除の確認',
-    `${paths.length} 件を完全に削除します。<br><strong>この操作は元に戻せません！</strong>`,
+  showModal(i18n.bulkDeleteTitle, i18n.bulkDeleteMsg(paths.length),
     async () => {
       const res = await api('delete', { paths });
-      showToast(`${res.count} 件を削除しました`, 'success');
+      showToast(i18n.bulkDeletedOk(res.count), 'success');
       refresh();
     }, true);
 }
 
 async function restoreAllArchived() {
   const archived = sessions.filter(s => s.isArchived);
-  if (!archived.length) { showToast('アーカイブ済みセッションはありません', 'error'); return; }
-  showModal('一括復元の確認',
-    `アーカイブ済みの ${archived.length} 件すべてを復元します。`,
+  if (!archived.length) { showToast(i18n.noArchived, 'error'); return; }
+  showModal(i18n.bulkRestoreTitle, i18n.allRestoreMsg(archived.length),
     async () => {
       const res = await api('restore', { paths: archived.map(s => s._path) });
-      showToast(`${res.count} 件を復元しました。Cmd+Q で再起動してください。`, 'success');
+      showToast(i18n.bulkRestoredOk(res.count), 'success');
       refresh();
     });
 }
 
 async function deleteAllArchived() {
   const archived = sessions.filter(s => s.isArchived);
-  if (!archived.length) { showToast('アーカイブ済みセッションはありません', 'error'); return; }
-  showModal('全アーカイブ削除',
-    `アーカイブ済みの ${archived.length} 件すべてを完全に削除します。<br><strong>この操作は元に戻せません！</strong>`,
+  if (!archived.length) { showToast(i18n.noArchived, 'error'); return; }
+  showModal(i18n.allArchiveDelete, i18n.allDeleteMsg(archived.length),
     async () => {
       const res = await api('delete', { paths: archived.map(s => s._path) });
-      showToast(`${res.count} 件を削除しました`, 'success');
+      showToast(i18n.bulkDeletedOk(res.count), 'success');
       refresh();
     }, true);
 }
