@@ -22,13 +22,12 @@ import sys
 import threading
 import time
 import webbrowser
-from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import urlparse
 
 # --- 定数 ---
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 APP_TITLE = "Cowork Archive Manager"
 PORT = 52849
 LOCK_FILE = Path.home() / ".cowork_archive_manager.lock"
@@ -36,17 +35,48 @@ LOCK_FILE = Path.home() / ".cowork_archive_manager.lock"
 # コマンドライン引数で指定されたカスタムパス（None = 自動検出）
 custom_sessions_path = None
 
-def get_sessions_base():
-    """OSに応じたセッションディレクトリのベースパスを返す"""
+def get_candidate_paths():
+    """OSに応じた候補パスのリストを返す（優先度順）"""
     system = platform.system()
+    home = Path.home()
+    candidates = []
+    # Cowork セッション専用（local-agent-mode-sessions のみ）
+    session_dir = "local-agent-mode-sessions"
     if system == "Darwin":
-        return Path.home() / "Library" / "Application Support" / "Claude" / "local-agent-mode-sessions"
+        candidates = [
+            home / "Library" / "Application Support" / "Claude" / session_dir,
+            home / "Library" / "Application Support" / "claude-desktop" / session_dir,
+            home / ".claude" / session_dir,
+        ]
     elif system == "Windows":
-        return Path(os.environ.get("APPDATA", "")) / "Claude" / "local-agent-mode-sessions"
-    elif system == "Linux":
-        return Path.home() / ".config" / "Claude" / "local-agent-mode-sessions"
+        appdata = Path(os.environ.get("APPDATA", ""))
+        localappdata = Path(os.environ.get("LOCALAPPDATA", ""))
+        candidates = [
+            appdata / "Claude" / session_dir,
+        ]
+        # MSIX版のパッケージディレクトリを動的に検出
+        msix_base = localappdata / "Packages"
+        if msix_base.exists():
+            try:
+                for pkg in msix_base.iterdir():
+                    if pkg.is_dir() and pkg.name.startswith("Claude_"):
+                        candidates.append(pkg / "LocalCache" / "Roaming" / "Claude" / session_dir)
+            except PermissionError:
+                pass
+        candidates += [
+            localappdata / "Claude" / session_dir,
+            appdata / "claude-desktop" / session_dir,
+            localappdata / "claude-desktop" / session_dir,
+            home / ".claude" / session_dir,
+        ]
     else:
-        return Path.home() / ".config" / "Claude" / "local-agent-mode-sessions"
+        candidates = [
+            home / ".config" / "Claude" / session_dir,
+            home / ".config" / "claude-desktop" / session_dir,
+            home / ".claude" / session_dir,
+        ]
+    return candidates
+
 
 
 # --- プロセス管理 ---
@@ -93,12 +123,24 @@ def remove_lock():
 
 # --- セッション操作 ---
 
+def _search_in_base(base_path):
+    """指定ベースパス配下でセッションファイルを探す。見つかったら (パス, True) を、なければ (None, ディレクトリ存在有無) を返す"""
+    if not base_path.exists():
+        return None, False
+    # 再帰的に local_*.json を探索
+    if any(base_path.glob("**/local_*.json")):
+        return base_path, True
+    return None, True
+
+
 def find_sessions_dir():
     """セッションディレクトリを探索し、(パス or None, 診断情報dict) を返す"""
+    candidates = get_candidate_paths()
     diag = {
         "os": platform.system(),
         "custom_path": str(custom_sessions_path) if custom_sessions_path else None,
-        "searched_base": None,
+        "searched_paths": [str(p) for p in candidates],
+        "searched_base": str(candidates[0]) if candidates else None,
         "base_exists": False,
         "subdirs_found": [],
         "reason": None,
@@ -108,51 +150,32 @@ def find_sessions_dir():
     if custom_sessions_path is not None:
         p = Path(custom_sessions_path)
         diag["searched_base"] = str(p)
+        diag["searched_paths"] = [str(p)]
         if not p.exists():
             diag["reason"] = "custom_path_not_found"
             return None, diag
         if not p.is_dir():
             diag["reason"] = "custom_path_not_dir"
             return None, diag
-        # カスタムパスに直接 local_*.json があるか確認
-        if any(p.glob("local_*.json")):
+        found, _ = _search_in_base(p)
+        if found:
             diag["base_exists"] = True
-            return p, diag
-        # カスタムパス配下のサブディレクトリも探索
-        for sub in p.iterdir():
-            if sub.is_dir():
-                diag["subdirs_found"].append(sub.name)
-                if any(sub.glob("local_*.json")):
-                    diag["base_exists"] = True
-                    return sub, diag
-                for proj in sub.iterdir():
-                    if proj.is_dir() and any(proj.glob("local_*.json")):
-                        diag["base_exists"] = True
-                        return proj, diag
+            return found, diag
         diag["reason"] = "no_session_files_in_custom_path"
         return None, diag
 
-    # 自動検出
-    sessions_base = get_sessions_base()
-    diag["searched_base"] = str(sessions_base)
+    # 自動検出: 全候補パスを順に探索
+    for candidate in candidates:
+        found, exists = _search_in_base(candidate)
+        if found:
+            diag["searched_base"] = str(candidate)
+            diag["base_exists"] = True
+            return found, diag
+        if exists:
+            diag["base_exists"] = True
 
-    if not sessions_base.exists():
-        diag["reason"] = "base_dir_not_found"
-        return None, diag
-
-    diag["base_exists"] = True
-
-    for org_dir in sessions_base.iterdir():
-        if not org_dir.is_dir() or org_dir.name == "skills-plugin":
-            continue
-        diag["subdirs_found"].append(org_dir.name)
-        for proj_dir in org_dir.iterdir():
-            if not proj_dir.is_dir():
-                continue
-            if any(proj_dir.glob("local_*.json")):
-                return proj_dir, diag
-
-    diag["reason"] = "no_session_files"
+    diag["searched_base"] = str(candidates[0]) if candidates else "?"
+    diag["reason"] = "base_dir_not_found" if not diag["base_exists"] else "no_session_files"
     return None, diag
 
 
@@ -163,7 +186,7 @@ def load_sessions():
         return [], diag
     diag["sessions_dir"] = str(sessions_dir)
     sessions = []
-    for json_file in sessions_dir.glob("local_*.json"):
+    for json_file in sessions_dir.glob("**/local_*.json"):
         try:
             with open(json_file) as f:
                 data = json.load(f)
@@ -175,8 +198,28 @@ def load_sessions():
     return sessions, diag
 
 
+_cached_sessions_dir = None
+
+def _validate_session_path(json_path):
+    """セッションパスがセッションディレクトリ内にあることを検証"""
+    global _cached_sessions_dir
+    p = Path(json_path).resolve()
+    if _cached_sessions_dir is None:
+        sessions_dir, _ = find_sessions_dir()
+        if sessions_dir is None:
+            return False
+        _cached_sessions_dir = sessions_dir.resolve()
+    try:
+        p.relative_to(_cached_sessions_dir)
+        return True
+    except ValueError:
+        return False
+
+
 def restore_session(json_path):
     """セッションを復元（isArchived を false に変更）"""
+    if not _validate_session_path(json_path):
+        return False
     try:
         with open(json_path) as f:
             data = json.load(f)
@@ -190,6 +233,8 @@ def restore_session(json_path):
 
 def delete_session(json_path):
     """セッションを完全削除（JSONファイルと関連ディレクトリ）"""
+    if not _validate_session_path(json_path):
+        return False
     try:
         p = Path(json_path)
         p.unlink(missing_ok=True)
@@ -446,6 +491,58 @@ HTML_PAGE = r"""<!DOCTYPE html>
     font-size: 13px;
     color: var(--text2);
   }
+
+  .path-input-area {
+    margin: 16px 0;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .path-input-area input {
+    flex: 1;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+    font-size: 14px;
+    font-family: monospace;
+  }
+  .path-input-area input::placeholder { color: var(--text2); }
+  .path-input-area input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .candidate-paths {
+    margin-top: 16px;
+    text-align: left;
+    display: inline-block;
+  }
+  .candidate-paths p {
+    font-size: 13px;
+    margin-bottom: 8px;
+    color: var(--text2);
+  }
+  .candidate-path-btn {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 8px 12px;
+    margin-bottom: 4px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--warning);
+    font-size: 12px;
+    font-family: monospace;
+    cursor: pointer;
+    transition: all 0.2s;
+    word-break: break-all;
+  }
+  .candidate-path-btn:hover {
+    border-color: var(--accent);
+    background: var(--surface2);
+  }
 </style>
 </head>
 <body>
@@ -525,6 +622,10 @@ const i18n = {
   diagCustomNotFound: isJa
     ? (p) => `指定されたパスが存在しません<br><code style="font-size:12px;color:#f0a500;word-break:break-all">${p}</code><br><br>パスを確認して再度お試しください。`
     : (p) => `Specified path does not exist<br><code style="font-size:12px;color:#f0a500;word-break:break-all">${p}</code><br><br>Please check the path and try again.`,
+  pathInputPlaceholder: isJa ? 'セッションディレクトリのパスを入力...' : 'Enter session directory path...',
+  pathApply:         isJa ? '適用'                               : 'Apply',
+  pathReset:         isJa ? '自動検出に戻す'                      : 'Reset to auto-detect',
+  candidatePathsLabel: isJa ? '探索済みパス（クリックで適用）:'    : 'Searched paths (click to apply):',
   refreshed:        isJa ? 'セッション一覧を更新しました'        : 'Session list refreshed',
   noArchived:       isJa ? 'アーカイブ済みセッションはありません' : 'No archived sessions',
   noRestoreTarget:  isJa ? '復元対象がありません'               : 'No sessions to restore',
@@ -620,12 +721,16 @@ function renderSessions() {
   const filtered = getFiltered();
   document.getElementById('count').textContent = filtered.length + ' ' + i18n.items;
 
+
+
   if (filtered.length === 0) {
     let emptyMsg = i18n.empty;
+    let showPathInput = false;
     // セッション自体が0件で診断情報がある場合は詳細を表示
     if (sessions.length === 0 && lastDiagnostic) {
       const d = lastDiagnostic;
       const basePath = d.searched_base || '?';
+      showPathInput = true;
       if (d.reason === 'base_dir_not_found') {
         emptyMsg = i18n.diagBaseNotFound(basePath);
       } else if (d.reason === 'no_session_files') {
@@ -636,11 +741,32 @@ function renderSessions() {
         emptyMsg = i18n.diagNoFiles(d.custom_path || basePath);
       }
     }
-    list.innerHTML = `<div class="empty-state"><p>${emptyMsg}</p></div>`;
+
+    let pathInputHtml = '';
+    if (showPathInput && lastDiagnostic) {
+      const paths = lastDiagnostic.searched_paths || [];
+      const candidateList = paths.map((p, i) =>
+        `<button class="candidate-path-btn" data-path-index="${i}" onclick="applyPath(lastDiagnostic.searched_paths[${i}])">${escapeHtml(p)}</button>`
+      ).join('');
+      pathInputHtml = `
+        <div class="path-input-area">
+          <input type="text" id="custom-path-input" placeholder="${i18n.pathInputPlaceholder}"
+                 value="${escapeHtml(lastDiagnostic.custom_path || '')}"
+                 onkeydown="if(event.key==='Enter')applyPathFromInput()">
+          <button class="btn btn-warning" onclick="applyPathFromInput()">${i18n.pathApply}</button>
+          <button class="btn btn-ghost" onclick="resetPath()">${i18n.pathReset}</button>
+        </div>
+        ${paths.length > 0 ? `<div class="candidate-paths">
+          <p>${i18n.candidatePathsLabel}</p>
+          ${candidateList}
+        </div>` : ''}`;
+    }
+
+    list.innerHTML = `<div class="empty-state"><p>${emptyMsg}</p>${pathInputHtml}</div>`;
     return;
   }
 
-  list.innerHTML = filtered.map(s => {
+  list.innerHTML = filtered.map((s, idx) => {
     const isSelected = selectedPaths.has(s._path);
     const badge = s.isArchived
       ? `<span class="badge badge-archived">${i18n.badgeArchived}</span>`
@@ -648,9 +774,9 @@ function renderSessions() {
     const msg = (s.initialMessage || '').replace(/\n/g, ' ').substring(0, 80);
     const model = s.model || i18n.unknown;
     return `
-      <div class="session-card ${isSelected ? 'selected' : ''}" onclick="toggleSelect('${s._path}', event)">
+      <div class="session-card ${isSelected ? 'selected' : ''}" onclick="toggleSelectIdx(${idx}, event)">
         <input type="checkbox" class="session-checkbox" ${isSelected ? 'checked' : ''}
-               onclick="event.stopPropagation(); toggleSelect('${s._path}')">
+               onclick="event.stopPropagation(); toggleSelectIdx(${idx})">
         <div class="session-info">
           <div class="session-name">${badge} ${escapeHtml(s.processName || i18n.unknown)}</div>
           <div class="session-meta">
@@ -661,8 +787,8 @@ function renderSessions() {
           <div class="session-message">${escapeHtml(msg)}</div>
         </div>
         <div class="session-actions">
-          ${s.isArchived ? `<button class="btn btn-success" onclick="event.stopPropagation(); restoreOne('${s._path}')">${i18n.restore}</button>` : ''}
-          <button class="btn btn-danger" onclick="event.stopPropagation(); deleteOne('${s._path}')">${i18n.delete_}</button>
+          ${s.isArchived ? `<button class="btn btn-success" onclick="event.stopPropagation(); restoreOne(getFiltered()[${idx}]._path)">${i18n.restore}</button>` : ''}
+          <button class="btn btn-danger" onclick="event.stopPropagation(); deleteOne(getFiltered()[${idx}]._path)">${i18n.delete_}</button>
         </div>
       </div>`;
   }).join('');
@@ -676,7 +802,9 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-function toggleSelect(path, event) {
+
+function toggleSelectIdx(idx, event) {
+  const path = getFiltered()[idx]._path;
   if (selectedPaths.has(path)) {
     selectedPaths.delete(path);
   } else {
@@ -808,6 +936,29 @@ async function deleteAllArchived() {
     }, true);
 }
 
+async function applyPath(p) {
+  const res = await api('set_path', { path: p });
+  sessions = res.sessions || [];
+  lastDiagnostic = res.diagnostic || null;
+  selectedPaths.clear();
+  document.getElementById('select-all').checked = false;
+  renderSessions();
+  if (sessions.length > 0) {
+    showToast(isJa ? 'パスを適用しました' : 'Path applied', 'success');
+  }
+}
+
+async function applyPathFromInput() {
+  const input = document.getElementById('custom-path-input');
+  if (input && input.value.trim()) {
+    await applyPath(input.value.trim());
+  }
+}
+
+async function resetPath() {
+  await applyPath('');
+}
+
 async function openFolder() {
   await api('open_folder');
 }
@@ -837,7 +988,10 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         path = urlparse(self.path).path
         content_len = int(self.headers.get("Content-Length", 0))
-        body = json.loads(self.rfile.read(content_len)) if content_len > 0 else {}
+        try:
+            body = json.loads(self.rfile.read(content_len)) if content_len > 0 else {}
+        except (json.JSONDecodeError, ValueError):
+            body = {}
 
         result = {}
 
@@ -858,6 +1012,17 @@ class Handler(BaseHTTPRequestHandler):
             paths = body.get("paths", [])
             count = sum(1 for p in paths if delete_session(p))
             result = {"success": True, "count": count}
+
+        elif path == "/api/set_path":
+            global custom_sessions_path, _cached_sessions_dir
+            new_path = body.get("path", "").strip()
+            if new_path:
+                custom_sessions_path = new_path
+            else:
+                custom_sessions_path = None
+            _cached_sessions_dir = None
+            sessions, diag = load_sessions()
+            result = {"success": True, "sessions": sessions, "diagnostic": diag}
 
         elif path == "/api/open_folder":
             sessions_dir, _ = find_sessions_dir()
