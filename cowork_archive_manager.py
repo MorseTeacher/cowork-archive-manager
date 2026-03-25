@@ -254,154 +254,243 @@ HTML_PAGE = r"""<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Cowork Archive Manager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..700;1,9..40,300..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #1a1a2e;
-    --surface: #16213e;
-    --surface2: #0f3460;
-    --accent: #e94560;
-    --accent2: #533483;
-    --text: #eee;
-    --text2: #aab;
-    --success: #4ecca3;
-    --warning: #f0a500;
-    --danger: #e94560;
-    --border: #2a2a4a;
+    --bg: #0c0e14;
+    --surface: #14171f;
+    --surface2: #1c2029;
+    --surface3: #242833;
+    --accent: #e8643a;
+    --accent-soft: rgba(232,100,58,0.12);
+    --accent-hover: #d4572f;
+    --emerald: #34d399;
+    --emerald-soft: rgba(52,211,153,0.12);
+    --amber: #fbbf24;
+    --amber-soft: rgba(251,191,36,0.12);
+    --rose: #f43f5e;
+    --rose-soft: rgba(244,63,94,0.12);
+    --text: #e8eaed;
+    --text2: #7a8194;
+    --text3: #4a5068;
+    --border: rgba(255,255,255,0.06);
+    --border-hover: rgba(255,255,255,0.12);
+    --radius: 10px;
+    --radius-lg: 14px;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     background: var(--bg);
     color: var(--text);
     min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
   }
+
+  /* --- Header --- */
   .header {
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    padding: 16px 24px;
+    padding: 20px 32px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     position: sticky;
     top: 0;
     z-index: 100;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+  }
+  .header-left { display: flex; align-items: center; gap: 14px; }
+  .header-logo {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    flex-shrink: 0;
+    object-fit: cover;
   }
   .header h1 {
-    font-size: 20px;
+    font-size: 17px;
     font-weight: 600;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    color: var(--text);
+    letter-spacing: -0.3px;
+  }
+  .header-version {
+    font-size: 11px;
+    color: var(--text3);
+    font-weight: 400;
+    margin-left: 2px;
   }
   .header-actions { display: flex; gap: 8px; }
+
+  /* --- Buttons --- */
   .btn {
-    padding: 8px 16px;
+    padding: 7px 14px;
     border: none;
-    border-radius: 8px;
+    border-radius: var(--radius);
     cursor: pointer;
+    font-family: inherit;
     font-size: 13px;
     font-weight: 500;
-    transition: all 0.2s;
+    transition: background-color 0.15s ease, transform 0.1s ease, opacity 0.15s ease;
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    letter-spacing: -0.1px;
   }
   .btn:hover { transform: translateY(-1px); }
   .btn:active { transform: translateY(0); }
-  .btn-primary { background: var(--accent); color: white; }
-  .btn-primary:hover { background: #d13550; }
-  .btn-secondary { background: var(--surface2); color: var(--text); }
-  .btn-secondary:hover { background: #1a4a7a; }
-  .btn-success { background: var(--success); color: #1a1a2e; }
-  .btn-success:hover { background: #3db893; }
-  .btn-warning { background: var(--warning); color: #1a1a2e; }
-  .btn-warning:hover { background: #d89400; }
-  .btn-danger { background: var(--danger); color: white; }
-  .btn-danger:hover { background: #d13550; }
-  .btn-ghost { background: transparent; color: var(--text2); border: 1px solid var(--border); }
-  .btn-ghost:hover { background: var(--surface2); color: var(--text); }
-  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .btn-accent { background: var(--accent); color: white; }
+  .btn-accent:hover { background: var(--accent-hover); }
+  .btn-emerald { background: var(--emerald); color: #0c0e14; }
+  .btn-emerald:hover { background: #2bc48d; }
+  .btn-amber { background: var(--amber); color: #0c0e14; }
+  .btn-amber:hover { background: #e5ac1e; }
+  .btn-rose { background: var(--rose); color: white; }
+  .btn-rose:hover { background: #dc3550; }
+  .btn-ghost {
+    background: var(--surface2);
+    color: var(--text2);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover { background: var(--surface3); color: var(--text); border-color: var(--border-hover); }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
 
+  /* --- Toolbar --- */
   .toolbar {
-    padding: 12px 24px;
+    padding: 16px 32px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
     flex-wrap: wrap;
   }
-  .filter-group { display: flex; gap: 4px; }
-  .filter-btn {
-    padding: 6px 14px;
+  .toolbar-left { display: flex; align-items: center; gap: 12px; }
+  .filter-group {
+    display: flex;
+    gap: 2px;
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 3px;
     border: 1px solid var(--border);
-    border-radius: 20px;
+  }
+  .filter-btn {
+    padding: 6px 16px;
+    border: none;
+    border-radius: 7px;
     background: transparent;
     color: var(--text2);
     cursor: pointer;
+    font-family: inherit;
     font-size: 13px;
-    transition: all 0.2s;
+    font-weight: 500;
+    transition: background-color 0.15s ease, color 0.15s ease;
   }
-  .filter-btn:hover { border-color: var(--accent); color: var(--text); }
+  .filter-btn:hover { color: var(--text); }
   .filter-btn.active {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: white;
+    background: var(--surface3);
+    color: var(--text);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
   }
   .count-badge {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text3);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* --- Bulk Actions --- */
+  .bulk-actions {
+    padding: 4px 32px 12px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .bulk-divider {
+    width: 1px;
+    height: 20px;
+    background: var(--border);
+    margin: 0 4px;
+  }
+
+  /* --- Select All --- */
+  .select-all-area {
+    padding: 0 32px 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
     font-size: 13px;
     color: var(--text2);
-    padding: 6px 12px;
-    background: var(--surface);
-    border-radius: 20px;
   }
 
-  .bulk-actions {
-    padding: 8px 24px;
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
+  /* --- Custom Checkbox --- */
+  .ck {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 18px; height: 18px;
+    border: 2px solid var(--text3);
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+    position: relative;
+    flex-shrink: 0;
   }
+  .ck:checked {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .ck:checked::after {
+    content: '';
+    position: absolute;
+    left: 4px; top: 1px;
+    width: 5px; height: 9px;
+    border: solid white; border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+  .ck:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+  /* --- Session List --- */
   .session-list {
-    padding: 0 24px 24px;
+    padding: 0 32px 32px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
   }
   .session-card {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 16px 20px;
+    border-radius: var(--radius-lg);
+    padding: 14px 18px;
     display: grid;
-    grid-template-columns: 32px 1fr auto;
-    gap: 16px;
+    grid-template-columns: 28px 1fr auto;
+    gap: 14px;
     align-items: center;
-    transition: all 0.2s;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
     cursor: pointer;
+    animation: cardIn 0.3s ease both;
   }
   .session-card:hover {
-    border-color: var(--accent2);
-    background: #1a2a4e;
+    border-color: var(--border-hover);
+    background: var(--surface2);
   }
   .session-card.selected {
     border-color: var(--accent);
-    background: #2a1a3e;
+    background: var(--accent-soft);
   }
-  .session-checkbox {
-    width: 20px;
-    height: 20px;
-    accent-color: var(--accent);
-    cursor: pointer;
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
   }
   .session-info { min-width: 0; }
   .session-name {
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 600;
     margin-bottom: 4px;
     display: flex;
     align-items: center;
     gap: 8px;
+    letter-spacing: -0.2px;
   }
   .session-meta {
     font-size: 12px;
@@ -409,119 +498,142 @@ HTML_PAGE = r"""<!DOCTYPE html>
     display: flex;
     gap: 16px;
     flex-wrap: wrap;
-    margin-bottom: 4px;
+    margin-bottom: 3px;
+    font-variant-numeric: tabular-nums;
   }
   .session-message {
-    font-size: 13px;
-    color: var(--text2);
+    font-size: 12px;
+    color: var(--text3);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 600px;
+    max-width: 640px;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 400;
   }
   .badge {
-    font-size: 11px;
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-weight: 500;
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
   }
-  .badge-archived { background: rgba(240,165,0,0.15); color: var(--warning); }
-  .badge-active { background: rgba(78,204,163,0.15); color: var(--success); }
+  .badge-archived { background: var(--amber-soft); color: var(--amber); }
+  .badge-active { background: var(--emerald-soft); color: var(--emerald); }
   .session-actions {
     display: flex;
-    gap: 6px;
+    gap: 4px;
     flex-shrink: 0;
+    opacity: 0.5;
+    transition: opacity 0.15s ease;
   }
+  .session-card:hover .session-actions { opacity: 1; }
 
+  /* --- Toast --- */
   .toast {
     position: fixed;
-    bottom: 24px;
+    bottom: 28px;
     left: 50%;
-    transform: translateX(-50%) translateY(100px);
-    padding: 12px 24px;
-    border-radius: 12px;
-    font-size: 14px;
+    transform: translateX(-50%) translateY(80px);
+    padding: 10px 20px;
+    border-radius: var(--radius);
+    font-size: 13px;
     font-weight: 500;
     z-index: 1000;
-    transition: transform 0.3s ease;
+    transition: transform 0.25s cubic-bezier(0.16,1,0.3,1);
     max-width: 90vw;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
   }
   .toast.show { transform: translateX(-50%) translateY(0); }
-  .toast-success { background: var(--success); color: #1a1a2e; }
-  .toast-error { background: var(--danger); color: white; }
+  .toast-success { background: rgba(52,211,153,0.9); color: #0c0e14; }
+  .toast-error { background: rgba(244,63,94,0.9); color: white; }
 
+  /* --- Modal --- */
   .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.6);
+    background: rgba(0,0,0,0.65);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 200;
+    animation: fadeIn 0.15s ease;
   }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   .modal {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
+    background: var(--surface2);
+    border: 1px solid var(--border-hover);
+    border-radius: var(--radius-lg);
     padding: 24px;
-    max-width: 480px;
+    max-width: 440px;
     width: 90%;
+    animation: modalIn 0.2s cubic-bezier(0.16,1,0.3,1);
   }
-  .modal h2 { font-size: 18px; margin-bottom: 12px; }
-  .modal p { color: var(--text2); margin-bottom: 16px; line-height: 1.6; }
+  @keyframes modalIn {
+    from { opacity: 0; transform: scale(0.96) translateY(8px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  .modal h2 { font-size: 16px; margin-bottom: 10px; font-weight: 600; letter-spacing: -0.2px; }
+  .modal p { color: var(--text2); margin-bottom: 18px; line-height: 1.7; font-size: 13px; }
   .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
+  /* --- Empty State --- */
   .empty-state {
     text-align: center;
-    padding: 60px 24px;
+    padding: 80px 32px;
     color: var(--text2);
   }
-  .empty-state p { font-size: 16px; line-height: 1.8; }
+  .empty-icon {
+    width: 56px; height: 56px;
+    margin: 0 auto 20px;
+    background: var(--surface2);
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px;
+  }
+  .empty-state p { font-size: 14px; line-height: 1.8; }
   .empty-state code {
-    background: rgba(255,255,255,0.08);
+    background: var(--surface2);
     padding: 2px 6px;
     border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
   }
 
-  .select-all-area {
-    padding: 4px 24px 0;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    color: var(--text2);
-  }
-
+  /* --- Path Input --- */
   .path-input-area {
-    margin: 16px 0;
+    margin: 20px auto 0;
     display: flex;
-    gap: 8px;
+    gap: 6px;
     align-items: center;
+    max-width: 560px;
   }
   .path-input-area input {
     flex: 1;
-    padding: 10px 14px;
+    padding: 9px 14px;
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--radius);
     background: var(--surface);
     color: var(--text);
-    font-size: 14px;
-    font-family: monospace;
+    font-size: 13px;
+    font-family: 'JetBrains Mono', monospace;
+    transition: border-color 0.15s ease;
   }
-  .path-input-area input::placeholder { color: var(--text2); }
-  .path-input-area input:focus {
-    outline: none;
-    border-color: var(--accent);
-  }
+  .path-input-area input::placeholder { color: var(--text3); }
+  .path-input-area input:focus { outline: none; border-color: var(--accent); }
   .candidate-paths {
-    margin-top: 16px;
+    margin: 16px auto 0;
     text-align: left;
-    display: inline-block;
+    max-width: 560px;
   }
   .candidate-paths p {
-    font-size: 13px;
+    font-size: 12px;
     margin-bottom: 8px;
-    color: var(--text2);
+    color: var(--text3);
   }
   .candidate-path-btn {
     display: block;
@@ -530,49 +642,70 @@ HTML_PAGE = r"""<!DOCTYPE html>
     padding: 8px 12px;
     margin-bottom: 4px;
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: 7px;
     background: var(--surface);
-    color: var(--warning);
-    font-size: 12px;
-    font-family: monospace;
+    color: var(--amber);
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
     word-break: break-all;
   }
   .candidate-path-btn:hover {
     border-color: var(--accent);
     background: var(--surface2);
   }
+
+  /* --- Responsive --- */
+  @media (max-width: 640px) {
+    .header, .toolbar, .bulk-actions, .select-all-area, .session-list { padding-left: 16px; padding-right: 16px; }
+    .session-card { grid-template-columns: 24px 1fr; }
+    .session-actions { display: none; }
+  }
+
+  /* --- Reduced Motion --- */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 </style>
 </head>
 <body>
 
 <div class="header">
-  <h1>Cowork Archive Manager</h1>
+  <div class="header-left">
+    <img class="header-logo" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjUgMTI1IiB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiI+CiAgPHJlY3Qgd2lkdGg9IjEyNSIgaGVpZ2h0PSIxMjUiIHJ4PSIyOCIgZmlsbD0iIzFhMWExYSIvPgogIDxwYXRoIGQ9Ik01NC4zNzUgMTE4Ljc1TDU2LjEyNSAxMTFMNTguMTI1IDEwMUw1OS43NSA5M0w2MS4yNSA4My4xMjVMNjIuMTI1IDc5Ljg3NUw2MiA3OS42MjVMNjEuMzc1IDc5Ljc1TDUzLjg3NSA5MEw0Mi41IDEwNS4zNzVMMzMuNSAxMTQuODc1TDMxLjM3NSAxMTUuNzVMMjcuNjI1IDExMy44NzVMMjggMTEwLjM3NUwzMC4xMjUgMTA3LjM3NUw0Mi41IDkxLjVMNTAgODEuNjI1TDU0Ljg3NSA3Nkw1NC43NSA3NS4yNUg1NC41TDIxLjUgOTYuNzVMMTUuNjI1IDk3LjVMMTMgOTUuMTI1TDEzLjM3NSA5MS4yNUwxNC42MjUgOTBMMjQuNSA4My4xMjVMNDkuMTI1IDY5LjM3NUw0OS41IDY4LjEyNUw0OS4xMjUgNjcuNUg0Ny44NzVMNDMuNzUgNjcuMjVMMjkuNzUgNjYuODc1TDE3LjYyNSA2Ni4zNzVMNS43NSA2NS43NUwyLjc1IDY1LjEyNUwwIDYxLjM3NUwwLjI1IDU5LjVMMi43NSA1Ny44NzVMNi4zNzUgNTguMTI1TDE0LjI1IDU4Ljc1TDI2LjEyNSA1OS41TDM0Ljc1IDYwTDQ3LjUgNjEuMzc1SDQ5LjVMNDkuNzUgNjAuNUw0OS4xMjUgNjBMNDguNjI1IDU5LjVMMzYuMjUgNTEuMjVMMjMgNDIuNUwxNiAzNy4zNzVMMTIuMjUgMzQuNzVMMTAuMzc1IDMyLjM3NUw5LjYyNSAyNy4xMjVMMTMgMjMuMzc1TDE3LjYyNSAyMy43NUwxOC43NSAyNEwyMy4zNzUgMjcuNjI1TDMzLjI1IDM1LjI1TDQ2LjI1IDQ0Ljg3NUw0OC4xMjUgNDYuMzc1TDQ5IDQ1Ljg3NVY0NS41TDQ4LjEyNSA0NC4xMjVMNDEuMTI1IDMxLjM3NUwzMy42MjUgMTguMzc1TDMwLjI1IDEzTDI5LjM3NSA5Ljc1QzI5LjA0MTcgOC42MjUgMjguODc1IDcuMzc1IDI4Ljg3NSA2TDMyLjc1IDAuNzUwMDA2TDM0Ljg3NSAwTDQwLjEyNSAwLjc1MDAwNkw0Mi4yNSAyLjYyNUw0NS41IDEwTDUwLjYyNSAyMS42MjVMNTguNzUgMzcuMzc1TDYxLjEyNSA0Mi4xMjVMNjIuMzc1IDQ2LjM3NUw2Mi44NzUgNDcuNzVINjMuNzVWNDdMNjQuMzc1IDM4TDY1LjYyNSAyNy4xMjVMNjYuODc1IDEzLjEyNUw2Ny4yNSA5LjEyNUw2OS4yNSA0LjM3NUw3My4xMjUgMS44NzUwMUw3Ni4xMjUgMy4yNUw3OC42MjUgNi44NzVMNzguMjUgOS4xMjVMNzYuODc1IDE4Ljc1TDczLjg3NSAzMy44NzVMNzIgNDQuMTI1SDczLjEyNUw3NC4zNzUgNDIuNzVMNzkuNSAzNkw4OC4xMjUgMjUuMjVMOTEuODc1IDIxTDk2LjM3NSAxNi4yNUw5OS4yNSAxNEgxMDQuNjI1TDEwOC41IDE5Ljg3NUwxMDYuNzUgMjZMMTAxLjI1IDMzTDk2LjYyNSAzOC44NzVMOTAgNDcuNzVMODYgNTQuODc1TDg2LjM3NSA1NS4zNzVIODcuMjVMMTAyLjEyNSA1Mi4xMjVMMTEwLjI1IDUwLjc1TDExOS43NSA0OS4xMjVMMTI0LjEyNSA1MS4xMjVMMTI0LjYyNSA1My4xMjVMMTIyLjg3NSA1Ny4zNzVMMTEyLjYyNSA1OS44NzVMMTAwLjYyNSA2Mi4yNUw4Mi43NSA2Ni41TDgyLjUgNjYuNjI1TDgyLjc1IDY3TDkwLjc1IDY3Ljc1TDk0LjI1IDY4SDEwMi43NUwxMTguNSA2OS4xMjVMMTIyLjYyNSA3MS44NzVMMTI1IDc1LjEyNUwxMjQuNjI1IDc3Ljc1TDExOC4yNSA4MC44NzVMMTA5Ljc1IDc4Ljg3NUw4OS43NSA3NC4xMjVMODMgNzIuNUg4MlY3M0w4Ny43NSA3OC42MjVMOTguMTI1IDg4TDExMS4yNSAxMDAuMTI1TDExMS44NzUgMTAzLjEyNUwxMTAuMjUgMTA1LjYyNUwxMDguNSAxMDUuMzc1TDk3IDk2LjYyNUw5Mi41IDkyLjc1TDgyLjUgODQuMzc1SDgxLjg3NVY4NS4yNUw4NC4xMjUgODguNjI1TDk2LjM3NSAxMDdMOTcgMTEyLjYyNUw5Ni4xMjUgMTE0LjM3NUw5Mi44NzUgMTE1LjVMODkuNSAxMTQuODc1TDgyLjI1IDEwNC44NzVMNzQuODc1IDkzLjVMNjguODc1IDgzLjM3NUw2OC4yNSA4My44NzVMNjQuNjI1IDEyMS42MjVMNjMgMTIzLjVMNTkuMjUgMTI1TDU2LjEyNSAxMjIuNjI1TDU0LjM3NSAxMTguNzVaIiBmaWxsPSIjRThEREQzIi8+Cjwvc3ZnPgo=" alt="Cowork Archive Manager logo" aria-hidden="true">
+    <h1>Cowork Archive Manager <span class="header-version">v""" + VERSION + r"""</span></h1>
+  </div>
   <div class="header-actions">
-    <button class="btn btn-ghost" onclick="openFolder()">フォルダを開く</button>
-    <button class="btn btn-secondary" onclick="refresh()">更新</button>
+    <button class="btn btn-ghost btn-sm" onclick="openFolder()" aria-label="Open session folder">フォルダを開く</button>
+    <button class="btn btn-accent btn-sm" onclick="refresh()" aria-label="Refresh sessions">更新</button>
   </div>
 </div>
 
 <div class="toolbar">
-  <div class="filter-group">
-    <button class="filter-btn active" data-filter="all" onclick="setFilter('all')">すべて</button>
-    <button class="filter-btn" data-filter="archived" onclick="setFilter('archived')">アーカイブ済み</button>
-    <button class="filter-btn" data-filter="active" onclick="setFilter('active')">アクティブ</button>
+  <div class="toolbar-left">
+    <div class="filter-group" role="tablist">
+      <button class="filter-btn active" role="tab" data-filter="all" onclick="setFilter('all')">すべて</button>
+      <button class="filter-btn" role="tab" data-filter="archived" onclick="setFilter('archived')">アーカイブ済み</button>
+      <button class="filter-btn" role="tab" data-filter="active" onclick="setFilter('active')">アクティブ</button>
+    </div>
+    <span class="count-badge" id="count"></span>
   </div>
-  <span class="count-badge" id="count"></span>
 </div>
 
 <div class="bulk-actions">
-  <button class="btn btn-success" onclick="restoreSelected()" id="btn-restore-sel" disabled>選択を復元</button>
-  <button class="btn btn-danger" onclick="deleteSelected()" id="btn-delete-sel" disabled>選択を削除</button>
-  <button class="btn btn-warning" onclick="restoreAllArchived()">全アーカイブを復元</button>
-  <button class="btn btn-danger" onclick="deleteAllArchived()">全アーカイブを削除</button>
+  <button class="btn btn-emerald btn-sm" onclick="restoreSelected()" id="btn-restore-sel" disabled>選択を復元</button>
+  <button class="btn btn-rose btn-sm" onclick="deleteSelected()" id="btn-delete-sel" disabled>選択を削除</button>
+  <span class="bulk-divider"></span>
+  <button class="btn btn-ghost btn-sm" onclick="restoreAllArchived()">全アーカイブを復元</button>
+  <button class="btn btn-ghost btn-sm" onclick="deleteAllArchived()">全アーカイブを削除</button>
 </div>
 
 <div class="select-all-area">
-  <input type="checkbox" id="select-all" class="session-checkbox" onchange="toggleSelectAll(this.checked)">
+  <input type="checkbox" id="select-all" class="ck" onchange="toggleSelectAll(this.checked)">
   <label for="select-all">すべて選択</label>
 </div>
 
@@ -753,8 +886,8 @@ function renderSessions() {
           <input type="text" id="custom-path-input" placeholder="${i18n.pathInputPlaceholder}"
                  value="${escapeHtml(lastDiagnostic.custom_path || '')}"
                  onkeydown="if(event.key==='Enter')applyPathFromInput()">
-          <button class="btn btn-warning" onclick="applyPathFromInput()">${i18n.pathApply}</button>
-          <button class="btn btn-ghost" onclick="resetPath()">${i18n.pathReset}</button>
+          <button class="btn btn-accent btn-sm" onclick="applyPathFromInput()">${i18n.pathApply}</button>
+          <button class="btn btn-ghost btn-sm" onclick="resetPath()">${i18n.pathReset}</button>
         </div>
         ${paths.length > 0 ? `<div class="candidate-paths">
           <p>${i18n.candidatePathsLabel}</p>
@@ -774,8 +907,8 @@ function renderSessions() {
     const msg = (s.initialMessage || '').replace(/\n/g, ' ').substring(0, 80);
     const model = s.model || i18n.unknown;
     return `
-      <div class="session-card ${isSelected ? 'selected' : ''}" onclick="toggleSelectIdx(${idx}, event)">
-        <input type="checkbox" class="session-checkbox" ${isSelected ? 'checked' : ''}
+      <div class="session-card ${isSelected ? 'selected' : ''}" onclick="toggleSelectIdx(${idx}, event)" style="animation-delay:${idx * 30}ms">
+        <input type="checkbox" class="ck" ${isSelected ? 'checked' : ''}
                onclick="event.stopPropagation(); toggleSelectIdx(${idx})">
         <div class="session-info">
           <div class="session-name">${badge} ${escapeHtml(s.processName || i18n.unknown)}</div>
@@ -787,8 +920,8 @@ function renderSessions() {
           <div class="session-message">${escapeHtml(msg)}</div>
         </div>
         <div class="session-actions">
-          ${s.isArchived ? `<button class="btn btn-success" onclick="event.stopPropagation(); restoreOne(getFiltered()[${idx}]._path)">${i18n.restore}</button>` : ''}
-          <button class="btn btn-danger" onclick="event.stopPropagation(); deleteOne(getFiltered()[${idx}]._path)">${i18n.delete_}</button>
+          ${s.isArchived ? `<button class="btn btn-emerald btn-sm" onclick="event.stopPropagation(); restoreOne(getFiltered()[${idx}]._path)">${i18n.restore}</button>` : ''}
+          <button class="btn btn-rose btn-sm" onclick="event.stopPropagation(); deleteOne(getFiltered()[${idx}]._path)">${i18n.delete_}</button>
         </div>
       </div>`;
   }).join('');
@@ -845,7 +978,7 @@ function showModal(title, message, onConfirm, danger) {
       <p>${message}</p>
       <div class="modal-actions">
         <button class="btn btn-ghost" id="modal-cancel">${i18n.cancel}</button>
-        <button class="btn ${danger ? 'btn-danger' : 'btn-success'}" id="modal-confirm">${i18n.execute}</button>
+        <button class="btn ${danger ? 'btn-rose' : 'btn-emerald'}" id="modal-confirm">${i18n.execute}</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
